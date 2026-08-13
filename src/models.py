@@ -8,10 +8,10 @@ class Observation:
     latitude: float
     longitude: float
     max_wind: int | None
-    pressure: int | None
     # Retained for validation only; not used for landfall detection
     record_identifier: str | None 
 
+@dataclass
 class Storm:
     id: str
     name: str
