@@ -1,6 +1,9 @@
 from shapely.geometry import LineString, MultiPoint, MultiPolygon, Point, Polygon
 from .models import Observation, TrackEntry, Storm
 
+# The wind speed threshold for hurricane classification is 64 knots
+HURRICANE_WIND_THRESHOLD = 64
+
 def find_entry_points(
         storm_segment: LineString,
         land_geometry: Polygon,
@@ -163,3 +166,17 @@ def detect_land_entries(
             entries.append(entry)
 
     return entries
+
+
+def is_hurricane_entry(entry: TrackEntry) -> bool:
+    """Determine whether a land entry occurred at hurricane-strength winds
+
+    Args:
+        entry: TrackEntry object representing a land entry
+
+    Returns:
+        True if the storm was a hurricane (64 kt or more) at the time of land entry, 
+        False otherwise
+    """
+
+    return entry.wind is not None and entry.wind >= HURRICANE_WIND_THRESHOLD
