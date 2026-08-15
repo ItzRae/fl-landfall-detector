@@ -180,3 +180,23 @@ def is_hurricane_entry(entry: TrackEntry) -> bool:
     """
 
     return entry.wind is not None and entry.wind >= HURRICANE_WIND_THRESHOLD
+
+
+def detect_hurricane_landfalls(
+        storm: Storm, 
+        land_geometry: Polygon | MultiPolygon
+    ) -> list[TrackEntry]:
+    """Detect landfall entries where the storm was hurricane-strength
+
+    Args:
+        storm: Storm object containing observations
+        land_geometry: Polygon or MultiPolygon representing land
+
+    Returns:
+        List of TrackEntry objects representing hurricane-strength land entries
+    """
+
+    all_entries = detect_land_entries(storm, land_geometry)
+    hurricane_entries = [entry for entry in all_entries if is_hurricane_entry(entry)]
+
+    return hurricane_entries
