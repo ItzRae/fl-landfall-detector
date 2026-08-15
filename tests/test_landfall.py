@@ -1,10 +1,16 @@
 from datetime import datetime
 
-from src.models import Observation, Storm, TrackEntry
 import pytest
-from shapely.geometry import Point, Polygon, LineString
+from shapely.geometry import LineString, Point, Polygon
 
-from src.landfall import find_entry_points, interpolate_entry, detect_land_entries, is_hurricane_entry
+from src.landfall import (
+    detect_hurricane_landfalls,
+    detect_land_entries,
+    find_entry_points,
+    interpolate_entry,
+    is_hurricane_entry,
+)
+from src.models import Observation, Storm, TrackEntry
 
 @pytest.fixture
 def square():
@@ -15,6 +21,22 @@ def square():
         (0, 4),
     ])
 
+def make_observation(
+    timestamp,
+    latitude,
+    longitude,
+    max_wind,
+    status="HU",
+    record_identifier=None,
+):
+    return Observation(
+        timestamp=timestamp,
+        status=status,
+        latitude=latitude,
+        longitude=longitude,
+        max_wind=max_wind,
+        record_identifier=record_identifier,
+    )
 
 def test_outside_to_inside_finds_one_entry(square):
     """Test that a storm segment crossing from outside -> inside a polygon finds one entry point"""
@@ -104,22 +126,18 @@ def test_shared_boundary_is_not_double_counted(square):
 
 def test_interpolate_entry_midpoint():
     """Test interpolation of timestamp and wind speed at a land entry point between two observations"""
-    start_obs = Observation(
+    start_obs = make_observation(
         timestamp=datetime(2026, 1, 1, 0, 0),
-        status="HU",
         latitude=2.0,
         longitude=-2.0,
         max_wind=60,
-        record_identifier=None,
     )
 
-    end_obs = Observation(
+    end_obs = make_observation(
         timestamp=datetime(2026, 1, 1, 2, 0),
-        status="HU",
         latitude=2.0,
         longitude=2.0,
         max_wind=80,
-        record_identifier=None,
     )
 
     point = Point(0, 2)
@@ -133,22 +151,18 @@ def test_interpolate_entry_midpoint():
 
 def test_interpolate_entry_missing_wind_returns_none():
     """Test that interpolation returns None for wind speed if either observation has missing wind data"""
-    start_obs = Observation(
+    start_obs = make_observation(
         timestamp=datetime(2026, 1, 1, 0, 0),
-        status="HU",
         latitude=2.0,
         longitude=-2.0,
         max_wind=None,
-        record_identifier=None,
     )
 
-    end_obs = Observation(
+    end_obs = make_observation(
         timestamp=datetime(2026, 1, 1, 2, 0),
-        status="HU",
         latitude=2.0,
         longitude=2.0,
         max_wind=80,
-        record_identifier=None,
     )
 
     point = Point(0, 2)
@@ -165,29 +179,23 @@ def test_detect_land_entries_finds_single_entry(square):
         id="TEST001",
         name="TEST",
         observations=[
-            Observation(
+            make_observation(
                 timestamp=datetime(2026, 1, 1, 0, 0),
-                status="HU",
                 latitude=2.0,
                 longitude=-2.0,
                 max_wind=60,
-                record_identifier=None,
             ),
-            Observation(
+            make_observation(
                 timestamp=datetime(2026, 1, 1, 1, 0),
-                status="HU",
                 latitude=2.0,
                 longitude=2.0,
                 max_wind=70,
-                record_identifier=None,
             ),
-            Observation(
+            make_observation(
                 timestamp=datetime(2026, 1, 1, 2, 0),
-                status="HU",
                 latitude=2.0,
                 longitude=6.0,
                 max_wind=65,
-                record_identifier=None,
             ),
         ],
     )
@@ -209,37 +217,29 @@ def test_detect_land_entries_finds_multiple_entries(square):
         id="TEST002",
         name="TEST",
         observations=[
-            Observation(
+            make_observation(
                 timestamp=datetime(2026, 1, 1, 0, 0),
-                status="HU",
                 latitude=2.0,
                 longitude=-2.0,
                 max_wind=60,
-                record_identifier=None,
             ),
-            Observation(
+            make_observation(
                 timestamp=datetime(2026, 1, 1, 1, 0),
-                status="HU",
                 latitude=2.0,
                 longitude=2.0,
                 max_wind=70,
-                record_identifier=None,
             ),
-            Observation(
+            make_observation(
                 timestamp=datetime(2026, 1, 1, 2, 0),
-                status="HU",
                 latitude=2.0,
                 longitude=6.0,
                 max_wind=65,
-                record_identifier=None,
             ),
-            Observation(
+            make_observation(
                 timestamp=datetime(2026, 1, 1, 3, 0),
-                status="HU",
                 latitude=2.0,
                 longitude=2.0,
                 max_wind=75,
-                record_identifier=None,
             ),
         ],
     )
@@ -264,6 +264,7 @@ def test_detect_land_entries_finds_multiple_entries(square):
         (None, False), # missing wind cannot qualify
     ],
 )
+
 def test_is_hurricane_entry(wind, expected):
     """Test that is_hurricane_entry correctly identifies hurricane-strength land entries"""
 
@@ -275,3 +276,102 @@ def test_is_hurricane_entry(wind, expected):
     )
 
     assert is_hurricane_entry(entry) == expected
+
+
+def test_detect_hurricane_landfalls_includes_hurricane_strength_entry(square):
+    """Test that detect_hurricane_landfalls correctly identifies hurricane-strength landfalls"""
+    storm = Storm(
+        id="TEST003",
+        name="TEST",
+        observations=[
+            make_observation(
+                timestamp=datetime(2026, 1, 1, 0, 0),
+                latitude=2.0,
+                longitude=-2.0,
+                max_wind=70,
+            ),
+            make_observation(
+                timestamp=datetime(2026, 1, 1, 1, 0),
+                latitude=2.0,
+                longitude=2.0,
+                max_wind=70,
+            ),
+        ],
+    )
+
+    landfalls = detect_hurricane_landfalls(storm, square)
+
+    assert len(landfalls) == 1
+    assert landfalls[0].wind == 70
+
+
+def test_detect_hurricane_landfalls_excludes_below_threshold_entry(square):
+    """Test that detect_hurricane_landfalls correctly excludes below-threshold landfalls"""
+    storm = Storm(
+        id="TEST004",
+        name="TEST",
+        observations=[
+            make_observation(
+                timestamp=datetime(2026, 1, 1, 0, 0),
+                status="TS",
+                latitude=2.0,
+                longitude=-2.0,
+                max_wind=50,
+            ),
+            make_observation(
+                timestamp=datetime(2026, 1, 1, 1, 0),
+                status="TS",
+                latitude=2.0,
+                longitude=2.0,
+                max_wind=50,
+            ),
+        ],
+    )
+
+    landfalls = detect_hurricane_landfalls(storm, square)
+
+    assert len(landfalls) == 0
+
+
+def test_detect_hurricane_landfalls_filters_multiple_entries(square):
+    """Test that only hurricane-strength land entries are returned."""
+
+    storm = Storm(
+        id="TEST005",
+        name="TEST",
+        observations=[
+            make_observation(
+                timestamp=datetime(2026, 1, 1, 0, 0),
+                latitude=2.0,
+                longitude=-2.0,
+                max_wind=70,
+            ),
+            make_observation(
+                timestamp=datetime(2026, 1, 1, 1, 0),
+                latitude=2.0,
+                longitude=2.0,
+                max_wind=70,
+            ),
+            make_observation(
+                timestamp=datetime(2026, 1, 1, 2, 0),
+                status="TS",
+                latitude=2.0,
+                longitude=6.0,
+                max_wind=50,
+            ),
+            make_observation(
+                timestamp=datetime(2026, 1, 1, 3, 0),
+                status="TS",
+                latitude=2.0,
+                longitude=2.0,
+                max_wind=50,
+            ),
+        ],
+    )
+
+    landfalls = detect_hurricane_landfalls(storm, square)
+
+    assert len(landfalls) == 1
+    assert landfalls[0].point.x == 0
+    assert landfalls[0].point.y == 2
+    assert landfalls[0].wind == 70
