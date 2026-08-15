@@ -1,5 +1,5 @@
-from shapely.geometry import LineString, MultiPoint, Point, Polygon
-from .models import Observation, TrackEntry
+from shapely.geometry import LineString, MultiPoint, MultiPolygon, Point, Polygon
+from .models import Observation, TrackEntry, Storm
 
 def find_entry_points(
         storm_segment: LineString,
@@ -12,8 +12,8 @@ def find_entry_points(
     that terminate directly on the boundary after starting offshore.
 
     Args:
-        storm_segment: Track segment between storm observations.
-        land_geometry: Polygon representing land.
+        storm_segment: Track segment between storm observations
+        land_geometry: Polygon representing land
 
     Returns:
         Boundary points where the segment transitions from outside to inside (or onto the boundary).
@@ -129,3 +129,37 @@ def interpolate_entry(
         wind=estimated_wind,
     )
     
+
+def detect_land_entries(
+        storm: Storm, 
+        land_geometry: Polygon | MultiPolygon
+    ) -> list[TrackEntry]:
+    """Detect geographic land entries along a storm track
+
+    Args:
+        storm: Storm object containing observations
+        land_geometry: Polygon or MultiPolygon representing land
+
+    Returns:
+        List of TrackEntry objects representing land entries
+    """
+
+    entries: list[TrackEntry] = []
+
+    # Iterate through each pair of consecutive observations to form track segments
+    for i in range(len(storm.observations ) - 1):
+        start_obs = storm.observations[i]
+        end_obs = storm.observations[i + 1]
+
+        segment = LineString([
+            (start_obs.longitude, start_obs.latitude),
+            (end_obs.longitude, end_obs.latitude),
+        ])
+
+        entry_points = find_entry_points(segment, land_geometry)
+
+        for point in entry_points:
+            entry = interpolate_entry(start_obs, end_obs, point)
+            entries.append(entry)
+
+    return entries
