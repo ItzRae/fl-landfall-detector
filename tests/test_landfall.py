@@ -1,10 +1,10 @@
 from datetime import datetime
 
-from src.models import Observation, Storm
+from src.models import Observation, Storm, TrackEntry
 import pytest
 from shapely.geometry import Point, Polygon, LineString
 
-from src.landfall import find_entry_points, interpolate_entry, detect_land_entries
+from src.landfall import find_entry_points, interpolate_entry, detect_land_entries, is_hurricane_entry
 
 @pytest.fixture
 def square():
@@ -253,3 +253,25 @@ def test_detect_land_entries_finds_multiple_entries(square):
     assert entries[1].point.y == 2
     # Check entries are in chronological/track order
     assert entries[0].timestamp < entries[1].timestamp
+
+
+@pytest.mark.parametrize(
+    ("wind", "expected"),
+    [
+        (64, True),    # exact hurricane threshold
+        (63.9, False), # just below threshold
+        (80, True),    # clearly hurricane strength
+        (None, False), # missing wind cannot qualify
+    ],
+)
+def test_is_hurricane_entry(wind, expected):
+    """Test that is_hurricane_entry correctly identifies hurricane-strength land entries"""
+
+    entry = TrackEntry(
+        point=Point(0, 0),
+        fraction=0.5,
+        timestamp=datetime(2026, 1, 1, 0, 0),
+        wind=wind,
+    )
+
+    assert is_hurricane_entry(entry) == expected
