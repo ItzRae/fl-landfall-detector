@@ -1,10 +1,10 @@
 from shapely.geometry import LineString, MultiPoint, Point, Polygon
-
+from .models import Observation, TrackEntry
 
 def find_entry_points(
-    storm_segment: LineString,
-    land_geometry: Polygon,
-) -> list[Point]:
+        storm_segment: LineString,
+        land_geometry: Polygon,
+    ) -> list[Point]:
     """Return points where a storm track segment enters land
 
     A land entry occurs when a track segment transitions from water (outside) 
@@ -87,3 +87,45 @@ def find_entry_points(
             entry_points.append(point)
 
     return entry_points
+
+def interpolate_entry(
+        start_obs: Observation,
+        end_obs: Observation,
+        point: Point,
+    ) -> TrackEntry:
+    """Interpolate the timestamp and wind speed at a landfall entry point.
+
+    Args:
+        start_obs: Observation at the start of the track segment
+        end_obs: Observation at the end of the track segment
+        point: Point where the storm track intersects land
+
+    Returns:
+        TrackEntry: Interpolated entry point, fraction, timestamp, and wind
+    """
+
+    obs_segment = LineString([
+        (start_obs.longitude, start_obs.latitude),
+        (end_obs.longitude, end_obs.latitude),
+    ])
+
+    crossing_fraction = obs_segment.project(point, normalized=True)
+
+    # Use the crossing fraction along the observation segment to estimate
+    # the landfall time and wind between the two recorded observations
+    duration = end_obs.timestamp - start_obs.timestamp
+    timestamp = start_obs.timestamp + (crossing_fraction * duration) 
+
+    if start_obs.max_wind is None or end_obs.max_wind is None:
+        estimated_wind = None
+    else:
+        wind_diff = end_obs.max_wind - start_obs.max_wind
+        estimated_wind = start_obs.max_wind + (crossing_fraction * wind_diff )
+
+    return TrackEntry(
+        point=point,
+        fraction=crossing_fraction,
+        timestamp=timestamp,
+        wind=estimated_wind,
+    )
+    
