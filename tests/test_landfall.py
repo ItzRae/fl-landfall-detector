@@ -1,7 +1,10 @@
-import pytest
-from shapely.geometry import Polygon, LineString
+from datetime import datetime
 
-from src.landfall import find_entry_points
+from src.models import Observation
+import pytest
+from shapely.geometry import Point, Polygon, LineString
+
+from src.landfall import find_entry_points, interpolate_entry
 
 @pytest.fixture
 def square():
@@ -97,3 +100,59 @@ def test_shared_boundary_is_not_double_counted(square):
     assert entries_a[0].x == 0
     assert entries_a[0].y == 2
     assert len(entries_b) == 0
+
+
+def test_interpolate_entry_midpoint():
+    """Test interpolation of timestamp and wind speed at a landfall entry point between two observations"""
+    start_obs = Observation(
+        timestamp=datetime(2026, 1, 1, 0, 0),
+        status="HU",
+        latitude=2.0,
+        longitude=-2.0,
+        max_wind=60,
+        record_identifier=None,
+    )
+
+    end_obs = Observation(
+        timestamp=datetime(2026, 1, 1, 2, 0),
+        status="HU",
+        latitude=2.0,
+        longitude=2.0,
+        max_wind=80,
+        record_identifier=None,
+    )
+
+    point = Point(0, 2)
+
+    entry = interpolate_entry(start_obs, end_obs, point)
+
+    assert entry.fraction == 0.5
+    assert entry.timestamp == datetime(2026, 1, 1, 1, 0)
+    assert entry.wind == 70
+
+
+def test_interpolate_entry_missing_wind_returns_none():
+    """Test that interpolation returns None for wind speed if either observation has missing wind data"""
+    start_obs = Observation(
+        timestamp=datetime(2026, 1, 1, 0, 0),
+        status="HU",
+        latitude=2.0,
+        longitude=-2.0,
+        max_wind=None,
+        record_identifier=None,
+    )
+
+    end_obs = Observation(
+        timestamp=datetime(2026, 1, 1, 2, 0),
+        status="HU",
+        latitude=2.0,
+        longitude=2.0,
+        max_wind=80,
+        record_identifier=None,
+    )
+
+    point = Point(0, 2)
+
+    entry = interpolate_entry(start_obs, end_obs, point)
+
+    assert entry.wind is None
