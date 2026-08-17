@@ -181,116 +181,6 @@ def is_hurricane_entry(entry: TrackEntry) -> bool:
 
     return entry.wind is not None and entry.wind >= HURRICANE_WIND_THRESHOLD
 
-def get_entered_component(
-    storm: Storm,
-    entry: TrackEntry,
-    land_geometry: MultiPolygon
-) -> int | None:
-    """Return the land component entered immediately after a track crossing.
-
-    The entry point itself lies on the land boundary, so this function samples
-    slightly farther along the storm track to determine which polygon component
-    contains the storm center after landfall
-
-    Args:
-        storm: Storm containing the observations that produced the entry
-        entry: Interpolated track entry to classify
-        land_geometry: Land geometry represented as a Polygon or MultiPolygon
-
-    Returns:
-        Index of the entered polygon component, or None if the component
-        cannot be determined
-    """
-
-    observations = storm.observations
-     # Tolerance used only to identify the observation segment containing
-    # the interpolated entry point
-    segment_tolerance = 1e-9
-    # Small normalized offset used to sample just inside land after crossing
-    epsilon = 1e-6
-
-    # Normalize Polygon and MultiPolygon inputs into a common component list
-    if isinstance(land_geometry, Polygon):
-        components = [land_geometry]
-    else:
-        components = land_geometry.geoms
-    
-    for i in range(len(observations) - 1):
-        start_obs = observations[i]
-        end_obs = observations[i + 1]
-
-        segment = LineString([
-            (start_obs.longitude, start_obs.latitude),
-            (end_obs.longitude, end_obs.latitude),
-        ])
-
-        # Skip observation segments that did not produce this entry
-        if segment.distance(entry.point) >= segment_tolerance:
-            continue
-
-        # Move slightly past the boundary crossing so the sample lies
-        # inside the land component rather than exactly on its boundary
-        after_fraction = min(
-            1.0,
-            entry.fraction + epsilon
-        )
-
-        after_point = segment.interpolate(
-            after_fraction,
-            normalized=True
-        )
-        
-        for index, polygon in enumerate(components):
-            if polygon.contains(after_point):
-                return index
-
-        return None
-
-    return None
-
-def consolidate_same_component_reentries(
-    storm: Storm,
-    entries: list[TrackEntry],
-    land_geometry: Polygon | MultiPolygon
-) -> list[TrackEntry]:
-    """Consolidate consecutive re-entries into the same land component.
-
-    Detailed coastline geometry can produce multiple water-to-land crossings
-    when a storm briefly exits and re-enters the same polygon component.
-    This function keeps the first entry into a component and suppresses
-    consecutive re-entries into that same component.
-
-    Args:
-        storm: Storm associated with the detected entries
-        entries: Chronologically ordered land entries for the storm
-        land_geometry: Land geometry used to identify polygon components
-
-    Returns:
-        Land entries with consecutive same-component re-entries removed
-    """
-
-    consolidated = []
-    previous_component = None
-
-    for entry in entries:
-        component = get_entered_component(
-            storm,
-            entry,
-            land_geometry,
-        )
-
-        # Preserve uncertain entries rather than risk dropping a real landfall
-        if component is None:
-            consolidated.append(entry)
-            continue
-
-        ## Keep only the first entry in a consecutive run on the same component
-        if component != previous_component:
-            consolidated.append(entry)
-            previous_component = component
-        
-    return consolidated
-
 
 def detect_hurricane_landfalls(
         storm: Storm, 
@@ -303,15 +193,10 @@ def detect_hurricane_landfalls(
         land_geometry: Polygon or MultiPolygon representing land
 
     Returns:
-        List of TrackEntry objects representing hurricane-strength land entries and
-        consolidated into same polygon components
+        List of TrackEntry objects representing hurricane-strength land entries
     """
 
     all_entries = detect_land_entries(storm, land_geometry)
     hurricane_entries = [entry for entry in all_entries if is_hurricane_entry(entry)]
 
-    return consolidate_same_component_reentries(
-        storm,
-        hurricane_entries,
-        land_geometry,
-    )
+    return hurricane_entries
