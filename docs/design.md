@@ -24,6 +24,14 @@ segment start:
 non-point coastline overlap:
     explicit error rather than silently undercounting
 
+### Excluding interstate crossings
+
+While I was reviewing unmatched computed events, I found that the original entry rule treated any outside-Florida → inside-Florida transition as a landfall -- that incorrectly included storms entering Florida over land from Alabama.
+
+To distinguish true water-to-land entries from interstate crossings, the detector now checks whether the point immediately before entering Florida is on neighboring-state land. Crossings from Alabama or Georgia into Florida are excluded.
+
+This removed two interstate crossings from the computed results without reducing HURDAT reference coverage.
+
 ## Hurricane Qualification
 ## Edge Cases
 ## Validation Findings

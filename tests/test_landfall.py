@@ -4,7 +4,6 @@ import pytest
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 
 from src.landfall import (
-    consolidate_same_component_reentries,
     detect_hurricane_landfalls,
     detect_land_entries,
     find_entry_points,
@@ -123,6 +122,68 @@ def test_shared_boundary_is_not_double_counted(square):
     assert entries_a[0].x == 0
     assert entries_a[0].y == 2
     assert len(entries_b) == 0
+
+def test_does_not_count_neighboring_land_to_florida_as_landfall():
+    """Do not treat a neighboring-land crossing as a water-to-land entry"""
+
+    florida = Polygon([
+        (0, 0),
+        (4, 0),
+        (4, 4),
+        (0, 4),
+    ])
+
+    neighboring_land = Polygon([
+        (-4, 0),
+        (0, 0),
+        (0, 4),
+        (-4, 4),
+    ])
+
+    segment = LineString([
+        (-2, 2),  # neighboring land
+        (2, 2),   # Florida
+    ])
+
+    entries = find_entry_points(
+        segment,
+        florida,
+        neighboring_land,
+    )
+
+    assert entries == []
+
+
+def test_still_counts_water_to_florida_entry_with_excluded_land():
+    """Still detect a true water-to-Florida entry when other land is provided"""
+
+    florida = Polygon([
+        (0, 0),
+        (4, 0),
+        (4, 4),
+        (0, 4),
+    ])
+
+    neighboring_land = Polygon([
+        (-4, 0),
+        (0, 0),
+        (0, 4),
+        (-4, 4),
+    ])
+
+    segment = LineString([
+        (2, -2),  # water
+        (2, 2),   # Florida
+    ])
+
+    entries = find_entry_points(
+        segment,
+        florida,
+        neighboring_land,
+    )
+
+    assert len(entries) == 1
+    assert entries[0].equals(Point(2, 0))
 
 
 def test_interpolate_entry_midpoint():

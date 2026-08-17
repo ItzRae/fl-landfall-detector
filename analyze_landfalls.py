@@ -5,7 +5,7 @@ import geopandas as gpd
 from src.landfall import detect_hurricane_landfalls
 from src.parser import parse_hurdat
 from src.models import LandfallEvent
-from src.validation import get_florida_hurricane_landfall_records, inspect_unmatched_reference, match_landfall_events
+from src.validation import get_florida_hurricane_landfall_records, match_landfall_events
 
 HURDAT_PATH = Path("data/hurdat2-1851-2022-042723.txt")
 BOUNDARY_PATH = Path("data/boundaries/cb_2025_us_state_500k.shp")
@@ -105,10 +105,19 @@ def main():
     florida = states[states["NAME"] == "Florida"]
     florida_geom = florida.geometry.iloc[0]
 
+    neighboring_states = states[
+    states["NAME"].isin(["Alabama", "Georgia"])
+]
+    neighbor_land_geom = neighboring_states.geometry.union_all()
+
     landfall_events: list[LandfallEvent] = []
 
     for storm in storms:
-        entries = detect_hurricane_landfalls(storm, florida_geom)
+        entries = detect_hurricane_landfalls(
+                    storm, 
+                    florida_geom,
+                    neighbor_land_geom,
+                )
 
         for entry in entries:
             if entry.timestamp.year >= 1900:

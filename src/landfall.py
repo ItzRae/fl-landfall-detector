@@ -6,7 +6,8 @@ HURRICANE_WIND_THRESHOLD = 64
 
 def find_entry_points(
         storm_segment: LineString,
-        land_geometry: Polygon,
+        land_geometry: Polygon | MultiPolygon,
+        excluded_land_geometry: Polygon | MultiPolygon | None = None,
     ) -> list[Point]:
     """Return points where a storm track segment enters land
 
@@ -17,6 +18,7 @@ def find_entry_points(
     Args:
         storm_segment: Track segment between storm observations
         land_geometry: Polygon representing land
+        excluded_land_geometry: Other land that should not be treated as water
 
     Returns:
         Boundary points where the segment transitions from outside to inside (or onto the boundary).
@@ -53,6 +55,9 @@ def find_entry_points(
     for point in sorted_points:
         crossing_fraction = storm_segment.project(point, normalized=True)
 
+        # A crossing at the segment start belongs to the preceding segment.
+        if crossing_fraction == 0.0:
+            continue
         # Sample immediately before and after the crossing to determine whether
         # the storm transitions from water to land - consider lower + upper bounds
         before_fraction = max(crossing_fraction - epsilon, 0.0) 
@@ -70,24 +75,28 @@ def find_entry_points(
         before_is_inside = land_geometry.contains(before_point)
         after_is_inside = land_geometry.contains(after_point)
 
-        # Detect special case where the segment terminates exactly on the coastline
-        after_is_boundary = land_geometry.boundary.covers(after_point)
-
-        # Exclude crossings at the segment start; they belong to the preceding segment
-        normal_entry = (
-            crossing_fraction > epsilon 
-            and not before_is_inside
-            and after_is_inside
+        before_on_other_land = (
+            excluded_land_geometry is not None
+            and excluded_land_geometry.contains(before_point)
         )
 
-        endpoint_entry = (
+
+        # Normal water-to-land crossing
+        if (
             not before_is_inside
-            and after_is_boundary
-            and crossing_fraction >= 1.0 - epsilon
-        )
-
-        if normal_entry or endpoint_entry:
+            and not before_on_other_land
+            and after_is_inside
+        ):
             entry_points.append(point)
+
+        # Segment ends exactly on the target coastline
+        elif crossing_fraction == 1.0:
+            if (
+                not before_is_inside
+                and not before_on_other_land
+                and land_geometry.boundary.covers(point)
+            ):
+                entry_points.append(point)
 
     return entry_points
 
@@ -135,14 +144,15 @@ def interpolate_entry(
 
 def detect_land_entries(
         storm: Storm, 
-        land_geometry: Polygon | MultiPolygon
+        land_geometry: Polygon | MultiPolygon,
+        excluded_land_geometry: Polygon | MultiPolygon | None = None,
     ) -> list[TrackEntry]:
     """Detect geographic land entries along a storm track
 
     Args:
         storm: Storm object containing observations
         land_geometry: Polygon or MultiPolygon representing land
-
+        excluded_land_geometry: Other land that should not be treated as water
     Returns:
         List of TrackEntry objects representing land entries
     """
@@ -159,7 +169,11 @@ def detect_land_entries(
             (end_obs.longitude, end_obs.latitude),
         ])
 
-        entry_points = find_entry_points(segment, land_geometry)
+        entry_points = find_entry_points(
+            segment, 
+            land_geometry, 
+            excluded_land_geometry
+            )
 
         for point in entry_points:
             entry = interpolate_entry(start_obs, end_obs, point)
@@ -184,7 +198,8 @@ def is_hurricane_entry(entry: TrackEntry) -> bool:
 
 def detect_hurricane_landfalls(
         storm: Storm, 
-        land_geometry: Polygon | MultiPolygon
+        land_geometry: Polygon | MultiPolygon,
+        excluded_land_geometry: Polygon | MultiPolygon | None = None,
     ) -> list[TrackEntry]:
     """Detect landfall entries where the storm was hurricane-strength
 
@@ -196,7 +211,7 @@ def detect_hurricane_landfalls(
         List of TrackEntry objects representing hurricane-strength land entries
     """
 
-    all_entries = detect_land_entries(storm, land_geometry)
+    all_entries = detect_land_entries(storm, land_geometry, excluded_land_geometry)
     hurricane_entries = [entry for entry in all_entries if is_hurricane_entry(entry)]
 
     return hurricane_entries
