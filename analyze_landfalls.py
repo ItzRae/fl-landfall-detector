@@ -1,5 +1,6 @@
 from pathlib import Path
 import csv
+import statistics
 import geopandas as gpd
 
 from src.landfall import detect_hurricane_landfalls
@@ -10,13 +11,13 @@ from src.validation import get_florida_hurricane_landfall_records, match_landfal
 HURDAT_PATH = Path("data/hurdat2-1851-2022-042723.txt")
 BOUNDARY_PATH = Path("data/boundaries/cb_2025_us_state_500k.shp")
 OUTPUT_PATH = Path("output/florida_hurricane_landfalls.csv")
-VALIDATION_OUTPUT_PATH = Path("output/validation_matches.csv")
+VALIDATION_OUTPUT_PATH = Path("output/validation_summary.csv")
 
 def write_landfalls_csv(
-        events: list[LandfallEvent],
-        output_path: Path,
+    events: list[LandfallEvent],
+    output_path: Path,
 ) -> None:
-    """Write computed Florida hurricane landfall candidates to CSV."""
+    """Write computed Florida hurricane landfalls to CSV."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with output_path.open("w", newline="") as file:
@@ -46,48 +47,75 @@ def write_landfalls_csv(
     f"to {OUTPUT_PATH}"
     )
 
-def write_validation_matches_csv(
+def write_validation_summary_csv(
     matches,
+    unmatched_computed,
+    unmatched_reference,
+    reference_events,
+    computed_events,
     output_path: Path,
 ) -> None:
-    """Write computed/reference landfall matches used for validation."""
+    """Write summary metrics from independent HURDAT2 validation"""
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    time_errors_min = [
+        match.time_difference.total_seconds() / 60
+        for match in matches
+    ]
+
+    spatial_errors_km = [
+        match.distance_km
+        for match in matches
+    ]
+
+    reference_coverage = (
+        len(matches) / len(reference_events) * 100
+        if reference_events
+        else 0
+    )
+
+    computed_match_rate = (
+        len(matches) / len(computed_events) * 100
+        if computed_events
+        else 0
+    )
 
     with output_path.open("w", newline="") as file:
         writer = csv.writer(file)
 
         writer.writerow([
-            "storm_id",
-            "storm_name",
-            "computed_datetime",
-            "reference_datetime",
-            "time_difference_min",
-            "computed_latitude",
-            "computed_longitude",
-            "reference_latitude",
-            "reference_longitude",
-            "distance_km",
+            "reference_events",
+            "computed_landfalls",
+            "matched",
+            "unmatched_computed",
+            "unmatched_reference",
+            "reference_coverage_pct",
+            "computed_match_rate_pct",
+            "median_time_difference_min",
+            "mean_time_difference_min",
+            "median_spatial_difference_km",
+            "mean_spatial_difference_km",
         ])
 
-        for match in matches:
-            writer.writerow([
-                match.computed.storm_id,
-                match.computed.storm_name,
-                match.computed.entry.timestamp.isoformat(),
-                match.reference.timestamp.isoformat(),
-                match.time_difference.total_seconds() / 60,
-                match.computed.entry.point.y,
-                match.computed.entry.point.x,
-                match.reference.latitude,
-                match.reference.longitude,
-                match.distance_km,
-            ])
+        writer.writerow([
+            len(reference_events),
+            len(computed_events),
+            len(matches),
+            len(unmatched_computed),
+            len(unmatched_reference),
+            round(reference_coverage, 1),
+            round(computed_match_rate, 1),
+            round(statistics.median(time_errors_min), 1),
+            round(statistics.mean(time_errors_min), 1),
+            round(statistics.median(spatial_errors_km), 1),
+            round(statistics.mean(spatial_errors_km), 1),
+        ])
 
     print(
-        f"Wrote {len(matches)} matched landfall candidates to 'L' record-identifiers"
-        f"to {OUTPUT_PATH}"
-        )
+        f"Wrote validation summary to {output_path}"
+    )
+
 
 def main():
     """Run the full HURDAT2 analysis to identify Florida hurricane landfall events.
@@ -105,6 +133,7 @@ def main():
     florida = states[states["NAME"] == "Florida"]
     florida_geom = florida.geometry.iloc[0]
 
+    # Consider hurricanes entering from FL's neighbors
     neighboring_states = states[
     states["NAME"].isin(["Alabama", "Georgia"])
 ]
@@ -161,10 +190,14 @@ def main():
         reference_events,
     )
 
-    write_validation_matches_csv(
+    write_validation_summary_csv(
         matches,
+        unmatched_computed,
+        unmatched_reference,
+        reference_events,
+        landfall_events,
         VALIDATION_OUTPUT_PATH,
-    )
+    )   
    
 
 if __name__ == "__main__":

@@ -1,0 +1,2 @@
+reference_events,computed_landfalls,matched,unmatched_computed,unmatched_reference,reference_coverage_pct,computed_match_rate_pct,median_time_difference_min,mean_time_difference_min,median_spatial_difference_km,mean_spatial_difference_km
+90,130,85,45,5,94.4,65.4,9.9,15.5,3.2,4.7
