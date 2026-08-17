@@ -1,9 +1,10 @@
 from datetime import datetime
 
 import pytest
-from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 
 from src.landfall import (
+    consolidate_same_component_reentries,
     detect_hurricane_landfalls,
     detect_land_entries,
     find_entry_points,
@@ -375,3 +376,81 @@ def test_detect_hurricane_landfalls_filters_multiple_entries(square):
     assert landfalls[0].point.x == 0
     assert landfalls[0].point.y == 2
     assert landfalls[0].wind == 70
+
+
+def test_consolidates_consecutive_reentries_into_same_component():
+    """Collapse consecutive re-entries into the same land component."""
+    island = Polygon([
+        (0, 0),
+        (1, 0),
+        (1, 1),
+        (0, 1),
+    ])
+
+    mainland = Polygon([
+        (2, 0),
+        (6, 0),
+        (6, 4),
+        (2, 4),
+        (2, 0),
+        (3, 0),
+        (3, 1),
+        (4, 1),
+        (4, 0),
+    ])
+
+    land = MultiPolygon([island, mainland])
+
+    storm = Storm(
+        id="TEST006",
+        name="TEST",
+        observations=[
+            make_observation(
+                datetime(2000, 1, 1, 0, 0),
+                0.5,
+                -1.0,
+                80,
+            ),
+            make_observation(
+                datetime(2000, 1, 1, 1, 0),
+                0.5,
+                0.5,
+                80,
+            ),
+            make_observation(
+                datetime(2000, 1, 1, 2, 0),
+                0.5,
+                1.5,
+                80,
+            ),
+            make_observation(
+                datetime(2000, 1, 1, 3, 0),
+                0.5,
+                2.5,
+                80,
+            ),
+            make_observation(
+                datetime(2000, 1, 1, 4, 0),
+                0.5,
+                3.5,
+                80,
+            ),
+            make_observation(
+                datetime(2000, 1, 1, 5, 0),
+                0.5,
+                4.5,
+                80,
+            ),
+        ],
+    )
+
+    entries = detect_land_entries(storm, land)
+
+    consolidated = consolidate_same_component_reentries(
+        storm,
+        entries,
+        land,
+    )
+
+    assert len(entries) == 3
+    assert len(consolidated) == 2
