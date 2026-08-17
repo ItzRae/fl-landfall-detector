@@ -1,0 +1,8 @@
+streamlit
+pandas
+pydeck
+matplotlib
+geopandas
+shapely
+pyproj
+pytest
