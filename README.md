@@ -9,7 +9,43 @@ For each qualifying landfall event, the application reports:
 - Landfall date
 - Maximum sustained wind speed
 
-## Approach
+## Running the analysis
+
+
+From the repository root, first generate the landfall and validation outputs:
+
+```bash
+python analyze_landfalls.py
+```
+
+Running the analysis produces:
+
+- `output/florida_hurricane_landfalls.csv` — independently detected Florida
+  hurricane landfall events
+- `output/validation_matches.csv` — computed/reference matches used only for
+  validation
+
+The validation output does not affect which events are detected or included
+in the primary landfall results.
+
+## Running the interface
+
+Then launch the Streamlit interface:
+
+```bash
+streamlit run app.py
+```
+
+The interface reads the generated landfall CSV and provides:
+
+- Year, storm, and minimum-wind filters
+- Summary metrics
+- Interactive landfall map
+- Filterable landfall results table
+
+---
+
+### Approach
 
 The approach to this application goes as follows:
 
@@ -20,20 +56,47 @@ The approach to this application goes as follows:
 5. Determine whether the storm qualifies as a hurricane at landfall
 6. Report the qualifying landfall events (name, date, max wind speed)
 
-## Assumptions + Definitions
+### Assumptions + Definitions
 
-### Definitions
-**Landfall:** A landfall is defined as the storm center crossing from water onto Florida land.
+#### Definitions
 
-**Hurricane:** A qualifying event must occur while the cyclone is classified as a hurricane (`HU`) in HURDAT2.
+##### Landfall
 
-### Multiple Landfalls
+**A Florida landfall is detected when the storm center crosses from water into
+the Florida land geometry.**
+
+HURDAT2 latitude and longitude observations are treated as estimates of the
+storm-center position. When a coastline crossing occurs between observations,
+the center track is linearly interpolated between the surrounding positions.
+
+The detector samples immediately before and after each boundary crossing to
+distinguish water-to-land entries from exits or coastline touches. Crossings
+from neighboring-state land in Alabama or Georgia into Florida are excluded,
+since those are interstate crossings rather than landfalls.
+
+Each distinct water-to-land crossing is retained as a Florida landfall.
+
+##### Qualifying hurricane landfall
+
+A detected landfall qualifies for the hurricane results when the estimated
+**maximum sustained wind at the coastline crossing is at least 64 kt (74 mph)**.
+
+This qualification is applied after the geometric landfall is detected. The
+HURDAT2 `L` landfall identifier is not used to determine whether a crossing
+occurred or whether it qualifies.
+
+##### Multiple Landfalls
 A storm may produce more than one Florida landfall. Each distinct water-to-land entry is treated as a separate event.
 
-### Landfall intensity
-How exactly do we assign hurricane status/wind when the coastline crossing falls between two observations? Policy TBD
+##### Landfall time + intensity
+**How exactly do we assign hurricane status/wind when the coastline crossing falls between two observations?**
+Because HURDAT2 observations are generally spaced several hours apart, the exact coastline crossing often occurs between observations.
 
-## Architecture
+The application estimates the crossing time and maximum sustained wind using linear 
+interpolation along the track segment between the surrounding observations. This assumes 
+approximately linear storm motion and wind change over that interval.
+
+### Architecture
 
 ```text
 HURDAT2 data
@@ -42,36 +105,63 @@ Parser
     ↓
 Storm / Observation models
     ↓
-Landfall detector ← Florida boundary geometry
+Storm-center track segments
     ↓
-Candidate landfall crossings
+Landfall detector ← Florida geometry + neighboring-state land geometry
     ↓
-Hurricane-intensity filter
+Detected water-to-land crossings
+    ↓
+Crossing time + wind interpolation
+    ↓
+Hurricane-intensity filter (≥ 64 kt)
     ↓
 LandfallEvent
     ↓
-Report
+CSV output
     ↓
-UI (optional if have time)
+Streamlit UI
 ```
 
-## Testing + Validation
+### Testing + Validation
 
 Testing will focus on the parser and landfall detection logic independently so that geographic classification can be tested without relying on HURDAT2's provided landfall (`L`) identifier
 
-Testing will include:
+Testing includes:
 - HURDAT2 header and observation parsing
 - Coordinate conversion
 - Sentinel/missing value handling
 - Water-to-land crossings
 - Land-to-water crossings
+- Interstate land crossings
 - Offshore tracks
 - Multiple landfalls
 - Hurricane qualification at landfall
+- Shared-boundary and segment-endpoint behavior
 
-### Validation
+#### Validation
 
-The HURDAT2 `L` record identifier will not be used by the landfall detection
-algorithm. However, after the geometric detection logic is implemented, it may be
-used as an independent validation signal to check if the computed coastline crossings 
-are consistent with NOAA's landfall flags - the `L` identifier will not determine whether an event is classified as a Florida landfall.
+The HURDAT2 `L` record identifier is never used by the landfall detection
+algorithm. It is used only afterward as an independent validation reference.
+
+For Florida hurricane-strength landfall records from 1900 onward, the current
+detector matches 85 of 90 HURDAT2 reference events (94.4% reference coverage).
+
+Among matched events:
+
+- Median time difference: 9.9 minutes
+- Mean time difference: 15.5 minutes
+- Median spatial difference: 3.2 km
+- Mean spatial difference: 4.6 km
+
+The remaining unmatched reference events are concentrated around the Florida
+Keys and Dry Tortugas, where rounded historical HURDAT2 coordinates and the
+modern Census boundary do not always produce the same literal coastline
+intersection.
+
+Validation also helped identify and remove two interstate crossings that were
+initially classified as Florida entries. These were land-to-land crossings
+from Alabama rather than true water-to-land landfalls.
+
+The detector is intentionally not adjusted to force agreement with the `L`
+records, since those records are used only as an external validation signal.
+
