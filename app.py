@@ -26,13 +26,14 @@ st.set_page_config(
 
 st.title("Florida Hurricane Landfalls")
 st.caption("Independent landfall detection from Atlantic HURDAT2 best-track data.")
+st.divider()
 
 df = pd.read_csv(
     DATA_PATH,
     parse_dates=["landfall_datetime"],
 )
 
-# Filters
+# Filters section
 st.sidebar.header("Filters")
 
 dataset_min_year = int(
@@ -129,12 +130,18 @@ map_df = filtered_df[
 
 map_df["landfall_date"] = (
     map_df["landfall_datetime"]
-    .dt.strftime("%b %d, %Y %H:%M")
+    .dt.strftime("%b %d, %Y")
+)
+
+map_df["landfall_time"] = (
+    map_df["landfall_datetime"]
+    .dt.strftime("%-I:%M %p")
 )
 
 map_df["max_wind_kt"] = (
     map_df["max_wind_kt"].round(2)
 )
+
 
 if not map_df.empty:
     map_min_wind = map_df["max_wind_kt"].min()
@@ -222,6 +229,7 @@ if not map_df.empty:
         "html": """
             <b>{storm_label}</b><br/>
             {landfall_date}<br/>
+            ~{landfall_time}<br/>
             Wind: {max_wind_kt} kt
         """
     }
@@ -243,7 +251,8 @@ else:
 
 # Results table  ============================
 
-st.subheader("Florida Hurricane Landfalls Since 1900")
+st.subheader("Landfall Table Results")
+st.caption("All detected hurricanes that made landfall in Florida since 1900")
 
 show_coordinates = st.checkbox(
     "Show latitude / longitude",
@@ -257,6 +266,13 @@ display_columns = [
     "max_wind_kt",
 ]
 
+display_df = filtered_df[display_columns].copy()
+
+display_df["landfall_datetime"] = (
+    display_df["landfall_datetime"]
+    .dt.strftime("%b %d, %Y")
+)
+
 if show_coordinates:
     display_columns.extend(
         [
@@ -264,13 +280,6 @@ if show_coordinates:
             "longitude",
         ]
     )
-
-display_df = filtered_df[display_columns].copy()
-
-display_df["landfall_datetime"] = (
-    display_df["landfall_datetime"]
-    .dt.strftime("%b %d, %Y")
-)
 
 display_df["max_wind_kt"] = (
     display_df["max_wind_kt"].round(1)
@@ -290,5 +299,6 @@ display_df = display_df.rename(
 st.dataframe(
     display_df,
     width="stretch",
+    height=650,
     hide_index=True,
 )

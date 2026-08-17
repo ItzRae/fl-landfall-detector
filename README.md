@@ -9,8 +9,20 @@ For each qualifying landfall event, the application reports:
 - Landfall date
 - Maximum sustained wind speed
 
-## Running the analysis
+## Running the application
 
+A deployed version of the application is available here:
+
+https://fl-landfall-detector.streamlit.app/
+
+The interface provides:
+
+- Year, storm, and minimum-wind filters
+- Summary metrics
+- Interactive landfall map
+- Filterable landfall results table
+
+### Running locally
 
 From the repository root, first generate the landfall and validation outputs:
 
@@ -22,26 +34,18 @@ Running the analysis produces:
 
 - `output/florida_hurricane_landfalls.csv` — independently detected Florida
   hurricane landfall events
-- `output/validation_matches.csv` — computed/reference matches used only for
-  validation
+- `output/validation_summary.csv` — summary metrics from the independent
+HURDAT2 validation comparison
 
 The validation output does not affect which events are detected or included
-in the primary landfall results.
-
-## Running the interface
+in the primary landfall results to inspect how my own system diverges from HURDAT's 
+landfall classification. 
 
 Then launch the Streamlit interface:
 
 ```bash
 streamlit run app.py
 ```
-
-The interface reads the generated landfall CSV and provides:
-
-- Year, storm, and minimum-wind filters
-- Summary metrics
-- Interactive landfall map
-- Filterable landfall results table
 
 ---
 
@@ -151,7 +155,7 @@ Among matched events:
 - Median time difference: 9.9 minutes
 - Mean time difference: 15.5 minutes
 - Median spatial difference: 3.2 km
-- Mean spatial difference: 4.6 km
+- Mean spatial difference: 4.7 km
 
 The remaining unmatched reference events are concentrated around the Florida
 Keys and Dry Tortugas, where rounded historical HURDAT2 coordinates and the
@@ -164,4 +168,3 @@ from Alabama rather than true water-to-land landfalls.
 
 The detector is intentionally not adjusted to force agreement with the `L`
 records, since those records are used only as an external validation signal.
-
