@@ -111,7 +111,7 @@ The approach to this application goes as follows:
 #### Landfall
 
 **A Florida landfall in this application is detected when the storm's surface center intersects
-with the coastline, according to the Nathional Hurricane Center's definition of landfall.** Consecutive HURDAT2 best-track observations are connected by straight track segments, and a Florida landfall is detected whenever the reconstructed storm-center track transitions from water onto the selected Florida land geometry
+with the coastline, according to the National Hurricane Center's definition of landfall.** Consecutive HURDAT2 best-track observations are connected by straight track segments, and a Florida landfall is detected whenever the reconstructed storm-center track transitions from water onto the selected Florida land geometry
 
 HURDAT2 latitude and longitude observations are treated as estimates of the
 storm-center position. When a coastline crossing occurs between observations,
@@ -139,6 +139,10 @@ A storm may produce more than one Florida landfall. Each distinct water-to-land 
 #### Landfall time + intensity
 **How exactly do we assign hurricane status/wind when the coastline crossing falls between two observations?**
 Because HURDAT2 observations are generally spaced several hours apart, the exact coastline crossing often occurs between observations.
+
+The application estimates the crossing time and maximum sustained wind using linear 
+interpolation along the track segment between the surrounding observations. This assumes 
+approximately linear storm motion and wind change over that interval.
 
 #### Coastline representation and event granularity
 Landfall detection depends on the geographic boundary used to represent Florida. This application uses the U.S. Census Bureau’s 2025 1:500k cartographic state boundary, which is a simplified modern representation of Florida and includes islands and fragmented coastal features. HURDAT2’s L records are independently analyzed historical landfall identifiers rather than outputs from this same boundary model. As a result, the reconstructed number and location of geometric coastline crossings are not expected to correspond one-to-one with the catalogued L records, particularly around complex coastlines such as the Florida Keys.
@@ -211,3 +215,10 @@ from Alabama rather than true water-to-land landfalls.
 
 The detector is intentionally not adjusted to force agreement with the `L`
 records, since those records are used only as an external validation signal.
+
+### Known limitations and design tradeoffs
+
+- **Track interpolation:** HURDAT2 observations are connected with straight line segments, with landfall time and wind linearly interpolated between observations. This is simple and reproducible but does not reconstruct the storm’s exact path between observations.
+- **Coastline representation:** Detection uses a modern Census Florida boundary - historical HURDAT2 coordinates and modern coastline geometry do not always align exactly especially around the Florida Keys and small offshore islands.
+- **Event granularity:** The detector retains each distinct water-to-Florida-land crossing. Detailed coastline geometry can therefore produce multiple crossings during a broader storm passage, while HURDAT2 `L` records may represent landfall at a coarser “major coastline” level.
+- **Track-start boundary cases:** If a storm’s first recorded observation already lies on or inside Florida, the preceding water-to-land transition cannot be reconstructed from HURDAT2 (this does not affect any qualifying hurricane landfalls in the analyzed dataset).
