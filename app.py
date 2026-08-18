@@ -126,6 +126,7 @@ with metric_col2:
 
 with metric_col3:
     max_filtered_wind = filtered_df["max_wind_kt"].max()
+    max_wind_mph = max_filtered_wind * 1.15078
 
     st.metric(
         "Max wind",
@@ -133,6 +134,13 @@ with metric_col3:
             f"{max_filtered_wind:.1f} kt"
             if not filtered_df.empty
             else "—"
+        ),
+        help=(
+            f"Maximum sustained wind is the highest estimated 1-minute average "
+            f"wind speed at landfall. "
+            f"{max_filtered_wind:.1f} kt ≈ {max_wind_mph:.0f} mph."
+            if not filtered_df.empty
+            else "Maximum sustained wind at landfall."
         ),
     )
 
@@ -169,6 +177,11 @@ map_df["landfall_time"] = (
 map_df["max_wind_kt"] = (
     map_df["max_wind_kt"].round(2)
 )
+
+# Convert to mph for general readability
+map_df["max_wind_mph"] = (
+    map_df["max_wind_kt"] * 1.15078
+).round(0)
 
 if not map_df.empty:
  
@@ -263,7 +276,7 @@ if not map_df.empty:
             <b>{storm_label}</b><br/>
             {landfall_date}<br/>
             ~{landfall_time} UTC<br/>
-            Wind: {max_wind_kt} kt
+            Wind: {max_wind_kt} kt (~{max_wind_mph} mph)
         """
     }
 
@@ -316,19 +329,25 @@ display_df["landfall_datetime"] = (
     landfall_datetime.dt.strftime("%b %d, %Y")
     + " (~"
     + landfall_datetime.dt.strftime("%-I:%M %p")
-    + " UTC)"
+    + ")"
 )
 
 display_df["max_wind_kt"] = (
-    display_df["max_wind_kt"].round(1)
+    display_df["max_wind_kt"].round(1).astype(str)
+    + " kt (~"
+    + (display_df["max_wind_kt"] * 1.15078)
+        .round()
+        .astype(int)
+        .astype(str)
+    + " mph)"
 )
 
 display_df = display_df.rename(
     columns={
         "storm_name": "Storm Name",
         "storm_id": "Storm ID",
-        "landfall_datetime": "Landfall Date / Estimated Time",
-        "max_wind_kt": "Max Wind (kt)",
+        "landfall_datetime": "Landfall Date / Estimated Time (UTC)",
+        "max_wind_kt": "Max Wind",
         "latitude": "Latitude",
         "longitude": "Longitude",
     }
