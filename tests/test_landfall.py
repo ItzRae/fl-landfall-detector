@@ -271,7 +271,7 @@ def test_detect_land_entries_finds_single_entry(square):
     assert entries[0].timestamp == datetime(2026, 1, 1, 0, 30)
 
 
-def test_detect_land_entries_finds_multiple_entries(square):
+def test_detect_land_entries_finds_entries_across_multiple_segments(square):
     """Test that detect_land_entries finds multiple land entries for a storm track"""
 
     # Outside -> inside -> outside -> inside
@@ -315,6 +315,52 @@ def test_detect_land_entries_finds_multiple_entries(square):
     assert entries[1].point.y == 2
     # Check entries are in chronological/track order
     assert entries[0].timestamp < entries[1].timestamp
+
+
+def test_find_entry_points_finds_multiple_entries_in_single_segment():
+    """Tests that find_entry_points correctly finds one segment crossing multiple polygons"""
+    land = MultiPolygon(
+        [
+            Polygon(
+                [
+                    (0, 0),
+                    (1, 0),
+                    (1, 2),
+                    (0, 2),
+                ]
+            ),
+            Polygon(
+                [
+                    (3, 0),
+                    (4, 0),
+                    (4, 2),
+                    (3, 2),
+                ]
+            ),
+        ]
+    )
+
+    segment = LineString(
+        [
+            (-1, 1),
+            (5, 1),
+        ]
+    )
+
+    entries = find_entry_points(
+        segment,
+        land,
+    )
+
+    assert len(entries) == 2
+
+    assert entries[0].equals(
+        Point(0, 1)
+    )
+
+    assert entries[1].equals(
+        Point(3, 1)
+    )
 
 
 @pytest.mark.parametrize(

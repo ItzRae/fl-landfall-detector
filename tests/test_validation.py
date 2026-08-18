@@ -90,7 +90,7 @@ def test_match_landfall_events_matches_nearby_event():
     matches, unmatched_computed, unmatched_reference = (
         match_landfall_events(
             [computed],
-            [("TEST001", reference)],
+            [("TEST002", reference)],
         )
     )
 
@@ -138,7 +138,7 @@ def test_match_landfall_events_matches_reference_only_once():
     """Prevent one reference event from matching multiple computed landfalls"""
 
     computed_a = LandfallEvent(
-        storm_id="TEST003",
+        storm_id="TEST001",
         storm_name="TEST",
         entry=TrackEntry(
             point=Point(-80.0, 25.0),
