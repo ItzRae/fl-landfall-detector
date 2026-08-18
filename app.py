@@ -18,7 +18,6 @@ def wind_to_color(wind, normalizer, colormap):
         220,
     ]
 
-
 st.set_page_config(
     page_title="Florida Hurricane Landfalls",
     layout="wide",
@@ -188,7 +187,7 @@ if not map_df.empty:
         vmax=norm_max_wind,
     )
 
-    colormap = mpl.colormaps["YlOrRd"]
+    colormap = mpl.colormaps["BuPu"]
 
     map_df["color"] = map_df["max_wind_kt"].apply(
         lambda wind: wind_to_color(
@@ -216,7 +215,7 @@ if not map_df.empty:
         radius_min_pixels=4,
         radius_max_pixels=10,
         get_fill_color="color",
-        get_line_color=[255, 255, 255, 180],
+        get_line_color=[30, 58, 95, 220],
         line_width_min_pixels=1,
         stroked=True,
         filled=True,
@@ -231,11 +230,13 @@ if not map_df.empty:
                 height:12px;
                 border-radius:6px;
                 background:linear-gradient(
-                    to right,
-                    #ffffcc,
-                    #fd8d3c,
-                    #800026
-                );
+                to right,
+                #deebf7,
+                #9ecae1,
+                #6baed6,
+                #756bb1,
+                #54278f
+            );
             "></div>
             <div style="
                 width:260px;
@@ -261,7 +262,7 @@ if not map_df.empty:
         "html": """
             <b>{storm_label}</b><br/>
             {landfall_date}<br/>
-            ~{landfall_time}<br/>
+            ~{landfall_time} UTC<br/>
             Wind: {max_wind_kt} kt
         """
     }
@@ -315,7 +316,7 @@ display_df["landfall_datetime"] = (
     landfall_datetime.dt.strftime("%b %d, %Y")
     + " (~"
     + landfall_datetime.dt.strftime("%-I:%M %p")
-    + ")"
+    + " UTC)"
 )
 
 display_df["max_wind_kt"] = (
@@ -342,5 +343,5 @@ st.dataframe(
 
 
 st.caption(
-    "`~` indicates an interpolated landfall time between surrounding HURDAT2 observations."
+    "`~` indicates an estimated UTC landfall time between surrounding HURDAT2 observations."
 )

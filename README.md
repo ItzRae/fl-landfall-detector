@@ -2,12 +2,14 @@
 # Florida Hurricane Landfalls
 
 An application for analyzing Atlantic HURDAT2 best-track data to identify
-all hurricanes that made landfall in Florida from 1900 onward
+hurricanes that made landfall in Florida from 1900 onward using independent
+geometry-based landfall detection.
 
-For each qualifying landfall event, the application reports:
+For each qualifying landfall, the application reports:
 - Storm name
-- Landfall date
-- Maximum sustained wind speed
+- Landfall date and estimated UTC time
+- Estimated maximum sustained wind speed at landfall
+- Optional landfall coordinates
 
 ## Running the application
 
