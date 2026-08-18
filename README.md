@@ -66,8 +66,8 @@ The approach to this application goes as follows:
 
 ##### Landfall
 
-**A Florida landfall is detected when the storm center crosses from water into
-the Florida land geometry.**
+**A Florida landfall in this application is detected when the storm's surface center intersects
+with the coastline, according to the Nathional Hurrican Center's definition of landfall.** Consecutive HURDAT2 best-track observations are connected by straight track segments, and a Florida landfall is detected whenever the reconstructed storm-center track transitions from water onto the selected Florida land geometry
 
 HURDAT2 latitude and longitude observations are treated as estimates of the
 storm-center position. When a coastline crossing occurs between observations,

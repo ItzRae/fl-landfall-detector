@@ -25,7 +25,30 @@ st.set_page_config(
 )
 
 st.title("Florida Hurricane Landfalls")
-st.caption("Independent landfall detection from Atlantic HURDAT2 best-track data.")
+st.caption("**Independent landfall detection from Atlantic HURDAT2 best-track data.**")
+st.caption("" \
+        "A landfall is detected when the reconstructed storm center crosses from" \
+        " water onto Florida land while estimated sustained winds are at least 64 kt. " \
+        "Detection does not use HURDAT2’s official landfall (L) indicator."
+        )
+st.info(
+    """
+    **How landfalls are defined**
+
+    This application follows the NHC definition of landfall as **the storm
+    center intersecting a coastline**. \n
+    Consecutive HURDAT2 observations are connected with straight track segments, 
+    and landfall time and wind are interpolated at each water-to-Florida crossing.
+    Each distinct geometric crossing is retained. Around fragmented
+    coastlines such as the Florida Keys, one broader storm passage can
+    therefore produce multiple detected crossings.
+
+    HURDAT2's `L` landfall indicator is not used during detection and is
+    used only afterward for independent validation. As a result, detected
+    crossing counts may not correspond one-to-one with HURDAT2's catalogued
+    landfall records.
+    """
+)
 st.divider()
 
 df = pd.read_csv(
@@ -88,6 +111,11 @@ with metric_col1:
     st.metric(
         "Detected landfalls",
         len(filtered_df),
+        help=(
+        "Distinct reconstructed water-to-Florida storm-center crossings "
+        "with estimated sustained wind >= 64 kt. Multiple crossings may "
+        "occur during one broader coastal passage."
+        ),
     )
 
 with metric_col2:
@@ -112,7 +140,7 @@ st.divider()
 
 # Interactive landfall map =============================
 
-st.subheader("Landfall Map")
+st.subheader("Detected Florida Landfalls")
 st.caption(
     "Marker color represents estimated sustained wind at landfall."
 )
@@ -144,17 +172,20 @@ map_df["max_wind_kt"] = (
 
 
 if not map_df.empty:
-    map_min_wind = map_df["max_wind_kt"].min()
-    map_max_wind = map_df["max_wind_kt"].max()
+ 
+    actual_min_wind = map_df["max_wind_kt"].min()
+    actual_max_wind = map_df["max_wind_kt"].max()
 
     # Avoid a zero-width normalization range when all visible
     # landfalls have the same wind speed
-    if map_min_wind == map_max_wind:
-        map_max_wind += 1
+    norm_max_wind = actual_max_wind
+
+    if actual_min_wind == actual_max_wind:
+        norm_max_wind += 1
 
     normalizer = colors.Normalize(
-        vmin=map_min_wind,
-        vmax=map_max_wind,
+        vmin=actual_min_wind,
+        vmax=norm_max_wind,
     )
 
     colormap = mpl.colormaps["YlOrRd"]
@@ -176,6 +207,7 @@ if not map_df.empty:
         axis=1,
     )
 
+    # Plot interactive map
     layer = pdk.Layer(
         "ScatterplotLayer",
         data=map_df,
@@ -211,8 +243,8 @@ if not map_df.empty:
                 justify-content:space-between;
                 font-size:12px;
             ">
-                <span>{map_min_wind:.0f} kt</span>
-                <span>{map_max_wind:.0f} kt</span>
+                <span>{actual_min_wind:.0f} kt</span>
+                <span>{actual_max_wind:.0f} kt</span>
             </div>
         </div>
         """,
@@ -251,8 +283,8 @@ else:
 
 # Results table  ============================
 
-st.subheader("Landfall Table Results")
-st.caption("All detected hurricanes that made landfall in Florida since 1900")
+st.subheader("Detected Landfall Table Results")
+st.caption("Reconstructed hurricane-strength Florida landfall crossings since 1900")
 
 show_coordinates = st.checkbox(
     "Show latitude / longitude",
@@ -266,13 +298,6 @@ display_columns = [
     "max_wind_kt",
 ]
 
-display_df = filtered_df[display_columns].copy()
-
-display_df["landfall_datetime"] = (
-    display_df["landfall_datetime"]
-    .dt.strftime("%b %d, %Y")
-)
-
 if show_coordinates:
     display_columns.extend(
         [
@@ -280,6 +305,18 @@ if show_coordinates:
             "longitude",
         ]
     )
+
+display_df = filtered_df[display_columns].copy()
+
+landfall_datetime = display_df["landfall_datetime"]
+
+# To distinguish multiple landfalls made from single storm path
+display_df["landfall_datetime"] = (
+    landfall_datetime.dt.strftime("%b %d, %Y")
+    + " (~"
+    + landfall_datetime.dt.strftime("%-I:%M %p")
+    + ")"
+)
 
 display_df["max_wind_kt"] = (
     display_df["max_wind_kt"].round(1)
@@ -289,7 +326,7 @@ display_df = display_df.rename(
     columns={
         "storm_name": "Storm Name",
         "storm_id": "Storm ID",
-        "landfall_datetime": "Landfall Date",
+        "landfall_datetime": "Landfall Date / Estimated Time",
         "max_wind_kt": "Max Wind (kt)",
         "latitude": "Latitude",
         "longitude": "Longitude",
@@ -301,4 +338,9 @@ st.dataframe(
     width="stretch",
     height=650,
     hide_index=True,
+)
+
+
+st.caption(
+    "`~` indicates an interpolated landfall time between surrounding HURDAT2 observations."
 )
