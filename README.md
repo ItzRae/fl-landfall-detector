@@ -11,7 +11,9 @@ For each qualifying landfall, the application reports:
 - Estimated maximum sustained wind speed at landfall
 - Optional landfall coordinates
 
-## Running the application
+## Setup
+
+### Running the application
 
 A deployed version of the application is available here:
 
@@ -24,7 +26,36 @@ The interface provides:
 - Interactive landfall map
 - Filterable landfall results table
 
+
+---
+
 ### Running locally
+
+#### 1. Create and activate a virtual environment
+
+Using Python 3.11 is recommended.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+On Windows:
+```bash
+.venv\Scripts\activate
+```
+
+#### 2. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+#### 3. Run the test suite
+```bash
+python -m pytest
+```
+
+#### 4. Run the landfall analysis
 
 From the repository root, first generate the landfall and validation outputs:
 
@@ -49,6 +80,19 @@ Then launch the Streamlit interface:
 streamlit run app.py
 ```
 
+## Input Data
+
+The analysis uses two main input datasets/files:
+
+**Atlantic HURDAT2 Best Track Data (1851–2022)**
+Provided by NOAA's National Hurricane Center / Hurricane Research Division.
+The repository uses the HURDAT2 Atlantic dataset containing storm-center position, status, maximum sustained wind, and related best-track observations.
+
+**2025 U.S. State Cartographic Boundary — 1:500,000**
+Provided by the U.S. Census Bureau.
+The Florida, Alabama, and Georgia geometries are loaded from the Census state boundary shapefile and used for geometric landfall detection and interstate-crossing exclusion.
+
+
 ---
 
 ### Approach
@@ -64,12 +108,10 @@ The approach to this application goes as follows:
 
 ### Assumptions + Definitions
 
-#### Definitions
-
-##### Landfall
+#### Landfall
 
 **A Florida landfall in this application is detected when the storm's surface center intersects
-with the coastline, according to the Nathional Hurrican Center's definition of landfall.** Consecutive HURDAT2 best-track observations are connected by straight track segments, and a Florida landfall is detected whenever the reconstructed storm-center track transitions from water onto the selected Florida land geometry
+with the coastline, according to the Nathional Hurricane Center's definition of landfall.** Consecutive HURDAT2 best-track observations are connected by straight track segments, and a Florida landfall is detected whenever the reconstructed storm-center track transitions from water onto the selected Florida land geometry
 
 HURDAT2 latitude and longitude observations are treated as estimates of the
 storm-center position. When a coastline crossing occurs between observations,
@@ -82,7 +124,7 @@ since those are interstate crossings rather than landfalls.
 
 Each distinct water-to-land crossing is retained as a Florida landfall.
 
-##### Qualifying hurricane landfall
+#### Qualifying hurricane landfall
 
 A detected landfall qualifies for the hurricane results when the estimated
 **maximum sustained wind at the coastline crossing is at least 64 kt (74 mph)**.
@@ -91,16 +133,15 @@ This qualification is applied after the geometric landfall is detected. The
 HURDAT2 `L` landfall identifier is not used to determine whether a crossing
 occurred or whether it qualifies.
 
-##### Multiple Landfalls
+#### Multiple Landfalls
 A storm may produce more than one Florida landfall. Each distinct water-to-land entry is treated as a separate event.
 
-##### Landfall time + intensity
+#### Landfall time + intensity
 **How exactly do we assign hurricane status/wind when the coastline crossing falls between two observations?**
 Because HURDAT2 observations are generally spaced several hours apart, the exact coastline crossing often occurs between observations.
 
-The application estimates the crossing time and maximum sustained wind using linear 
-interpolation along the track segment between the surrounding observations. This assumes 
-approximately linear storm motion and wind change over that interval.
+#### Coastline representation and event granularity
+Landfall detection depends on the geographic boundary used to represent Florida. This application uses the U.S. Census Bureau’s 2025 1:500k cartographic state boundary, which is a simplified modern representation of Florida and includes islands and fragmented coastal features. HURDAT2’s L records are independently analyzed historical landfall identifiers rather than outputs from this same boundary model. As a result, the reconstructed number and location of geometric coastline crossings are not expected to correspond one-to-one with the catalogued L records, particularly around complex coastlines such as the Florida Keys.
 
 ### Architecture
 

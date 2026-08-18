@@ -25,7 +25,7 @@ st.set_page_config(
 
 st.title("Florida Hurricane Landfalls")
 st.caption("**Independent landfall detection from Atlantic HURDAT2 best-track data.**")
-st.caption("" \
+st.caption(
         "A landfall is detected when the reconstructed storm center crosses from" \
         " water onto Florida land while estimated sustained winds are at least 64 kt. " \
         "Detection does not use HURDAT2’s official landfall (L) indicator."
@@ -42,10 +42,11 @@ st.info(
     coastlines such as the Florida Keys, one broader storm passage can
     therefore produce multiple detected crossings.
 
-    HURDAT2's `L` landfall indicator is not used during detection and is
-    used only afterward for independent validation. As a result, detected
-    crossing counts may not correspond one-to-one with HURDAT2's catalogued
-    landfall records.
+    HURDAT2's `L` landfall indicator is **not used during detection** and is used
+    only afterward for independent validation. Because HURDAT2 `L` records refer
+    to crossings of a major coastline, they are not expected to correspond
+    one-to-one with every geometric crossing detected against the detailed Florida
+    boundary, particularly around the Keys and small offshore islands.
     """
 )
 st.divider()
@@ -168,7 +169,6 @@ map_df["landfall_time"] = (
 map_df["max_wind_kt"] = (
     map_df["max_wind_kt"].round(2)
 )
-
 
 if not map_df.empty:
  
