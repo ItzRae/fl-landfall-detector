@@ -84,18 +84,37 @@ files invalidate the analysis cache and populate the dashboard directly. The
 dashboard analyzes all supported coastal states and lets you select one or more.
 Use **Download filtered results** to export the selected events.
 
-For scheduled downloads, run that command with a scheduler **on the same host
-and filesystem as Streamlit**. For example, a weekly cron job (note: replace
-with installation paths):
+### Weekly hosted updates
 
-```cron
-0 8 * * 1 cd /absolute/path/fl-landfall-detector && /absolute/path/.venv/bin/python download_data.py >> /absolute/path/landfall-download.log 2>&1
+`.github/workflows/update-data.yml` runs every Monday at 13:23 UTC
+(09:23 EDT / 08:23 EST), independently of whether Streamlit is awake.
+It also runs when the workflow is added or updated on `main`, seeding the first
+tracked snapshot. You can also run it from **GitHub → Actions → Update hurricane data → Run workflow**.
+The workflow runs tests, fetches NOAA's current Atlantic file, compares its bytes,
+validates changed data, and runs multistate analysis before publishing. Comparing
+content also catches revisions at the same URL. Unchanged data causes no commit.
+The Census boundary remains pinned to the bundled 2025 version.
+
+Changed inputs are committed to `data/current/hurdat2.txt` and `source.json`
+with source URL, SHA-256 checksum, and update time. Streamlit loads this tracked
+snapshot ahead of local downloads and bundled historical inputs. Community Cloud
+picks up the repository changes, and the source signature invalidates cached
+analysis on the next app rerun. No CSV handoff or keep-awake job is required.
+
+The workflow needs Actions enabled and permission to write repository contents;
+branch protection must permit its data commits. Failed validation never publishes
+an update. A concurrent push to `main` can reject the data push safely; rerun the
+workflow in that case. GitHub may delay scheduled runs and may disable schedules
+in public repositories after prolonged inactivity; check the Actions run history.
+
+For a local check using the same publishing path:
+
+```bash
+python update_data.py
 ```
 
-This schedule uses the scheduler host's timezone. Scheduling is not installed
-by this repository. A download on your laptop or in GitHub Actions does not
-update a separately hosted Streamlit app. An already open, idle dashboard will
-refresh its results on its next rerun, not on a background timer.
+Once `data/current/` exists, it takes priority over `download_data.py` snapshots.
+Before that first published snapshot, local downloads or bundled files are used.
 
 CSV output remains optional for exports and independent validation:
 

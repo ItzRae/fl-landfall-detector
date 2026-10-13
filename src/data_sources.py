@@ -51,7 +51,10 @@ def fetch(url: str) -> bytes:
 
 
 def input_paths() -> tuple[Path, Path]:
-    """Use the last validated download, or bundled inputs before the first download."""
+    """Prefer the published snapshot, then local downloads, then bundled inputs."""
+    published = ROOT / "data/current/hurdat2.txt"
+    if published.exists():
+        return published, ROOT / "data/boundaries/cb_2025_us_state_500k.shp"
     manifest = CACHE / "current.json"
     if manifest.exists():
         data = json.loads(manifest.read_text())

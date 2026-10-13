@@ -1,0 +1,58 @@
+name: Update hurricane data
+
+on:
+  schedule:
+    # Mondays at 13:23 UTC (09:23 EDT / 08:23 EST).
+    - cron: '23 13 * * 1'
+  workflow_dispatch:
+  # Seed the tracked snapshot when this workflow is installed or updated.
+  push:
+    branches: [main]
+    paths: ['.github/workflows/update-data.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-hurricane-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Test
+        run: python -m pytest -q
+      - name: Check NOAA for changed data
+        run: python update_data.py
+      - name: Validate multistate analysis before publishing
+        run: |
+          python - <<'PY'
+          from src.analysis import analyze_states
+          from src.data_sources import input_paths
+          frame = analyze_states(*input_paths())
+          if frame.empty:
+              raise ValueError("Updated data produced no qualifying landfalls")
+          print(f"Validated {len(frame)} landfall candidates")
+          PY
+      - name: Commit changed source data
+        run: |
+          git add -- data/current/hurdat2.txt data/current/source.json
+          if git diff --cached --quiet; then
+            echo "No source changes to publish."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "data: refresh Atlantic HURDAT2 snapshot"
+          git push origin HEAD:main

@@ -20,6 +20,7 @@ def test_discovery_fails_when_no_atlantic_file():
 
 
 def test_failed_download_preserves_current_sources(tmp_path, monkeypatch):
+    monkeypatch.setattr(data_sources, 'ROOT', tmp_path)
     monkeypatch.setattr(data_sources, 'CACHE', tmp_path)
     manifest = tmp_path / 'current.json'
     original = json.dumps({'hurdat_path': 'old.txt', 'boundary_path': 'old.zip'})
