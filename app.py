@@ -3,14 +3,13 @@ import matplotlib.colors as colors
 import pydeck as pdk
 import streamlit as st
 
-from src.analysis import analyze_inputs, landfalls_dataframe
+from src.analysis import COASTAL_STATES, analyze_states
 from src.data_sources import input_paths
 
 
 @st.cache_data(show_spinner="Calculating landfalls…", max_entries=2)
 def load_landfalls(hurdat_path, boundary_path, input_signature):
-    _, _, events = analyze_inputs(hurdat_path, boundary_path)
-    return landfalls_dataframe(events)
+    return analyze_states(hurdat_path, boundary_path)
 
 def wind_to_color(wind, normalizer, colormap):
     """Map wind speed to an RGBA color for the landfall map"""
@@ -25,15 +24,15 @@ def wind_to_color(wind, normalizer, colormap):
     ]
 
 st.set_page_config(
-    page_title="Florida Hurricane Landfalls",
+    page_title="U.S. Coastal Hurricane Landfalls",
     layout="wide",
 )
 
-st.title("Florida Hurricane Landfalls")
+st.title("U.S. Coastal Hurricane Landfalls")
 st.caption("**Independent landfall detection from Atlantic HURDAT2 best-track data.**")
 st.caption(
         "A landfall is detected when the reconstructed storm center crosses from" \
-        " water onto Florida land while estimated sustained winds are at least 64 kt. " \
+        " water onto coastal state land while estimated sustained winds are at least 64 kt. " \
         "Detection does not use HURDAT2’s official landfall (L) indicator."
         )
 st.info(
@@ -43,7 +42,7 @@ st.info(
     This application follows the NHC definition of landfall as **the storm
     center intersecting a coastline**. \n
     Consecutive HURDAT2 observations are connected with straight track segments, 
-    and landfall time and wind are interpolated at each water-to-Florida crossing.
+    and landfall time and wind are interpolated at each water-to-land crossing.
     Each distinct geometric crossing is retained. Around fragmented
     coastlines such as the Florida Keys, one broader storm passage can
     therefore produce multiple detected crossings.
@@ -51,8 +50,8 @@ st.info(
     HURDAT2's `L` landfall indicator is **not used during detection** and is used
     only afterward for independent validation. Because HURDAT2 `L` records refer
     to crossings of a major coastline, they are not expected to correspond
-    one-to-one with every geometric crossing detected against the detailed Florida
-    boundary, particularly around the Keys and small offshore islands.
+    one-to-one with every geometric crossing detected against the detailed state
+    boundaries, particularly around the Keys and small offshore islands.
     """
 )
 st.divider()
@@ -74,6 +73,10 @@ if df.empty:
 
 # Filters section
 st.sidebar.header("Filters")
+selected_states = st.sidebar.multiselect(
+    "States", options=COASTAL_STATES, default=["Florida"],
+    help="Atlantic and Gulf coastal states. Inland state crossings are excluded.",
+)
 
 dataset_min_year = int(
     df["landfall_datetime"].dt.year.min()
@@ -112,6 +115,7 @@ filtered_df = df[
         year_range[1],
     )
     & (df["max_wind_kt"] >= minimum_wind)
+    & df["state"].isin(selected_states)
 ].copy()
 
 if selected_storm != "All":
@@ -128,7 +132,7 @@ with metric_col1:
         "Detected landfalls",
         len(filtered_df),
         help=(
-        "Distinct reconstructed water-to-Florida storm-center crossings "
+        "Distinct reconstructed water-to-land storm-center crossings "
         "with estimated sustained wind >= 64 kt. Multiple crossings may "
         "occur during one broader coastal passage."
         ),
@@ -164,13 +168,15 @@ st.divider()
 
 # Interactive landfall map =============================
 
-st.subheader("Detected Florida Landfalls")
+st.subheader("Detected Coastal Landfalls")
 st.caption(
+    "Hover over a marker to see its landfall details. "
     "Marker color represents estimated sustained wind at landfall."
 )
 
 map_df = filtered_df[
     [
+        "state",
         "latitude",
         "longitude",
         "storm_id",
@@ -249,6 +255,8 @@ if not map_df.empty:
         stroked=True,
         filled=True,
         pickable=True,
+        auto_highlight=True,
+        highlight_color=[255, 180, 0, 220],
     )
 
     st.markdown(
@@ -282,18 +290,28 @@ if not map_df.empty:
     )
 
     view_state = pdk.ViewState(
-        latitude=27.7,
-        longitude=-82.0,
-        zoom=5.4,
+        latitude=float(map_df["latitude"].mean()),
+        longitude=float(map_df["longitude"].mean()),
+        zoom=4 if map_df["state"].nunique() > 1 else 5,
     )
 
     tooltip = {
         "html": """
             <b>{storm_label}</b><br/>
+            {state}<br/>
             {landfall_date}<br/>
             ~{landfall_time} UTC<br/>
             Wind: {max_wind_kt} kt (~{max_wind_mph} mph)
-        """
+        """,
+        # Keep deck.gl's cursor coordinates and offset the card above the marker.
+        "style": {
+            "translate": "-50% calc(-100% - 12px)",
+            "zIndex": "1000",
+            "backgroundColor": "#1F2937",
+            "color": "#FFFFFF",
+            "borderRadius": "6px",
+            "pointerEvents": "none",
+        },
     }
 
     deck = pdk.Deck(
@@ -303,6 +321,18 @@ if not map_df.empty:
         map_style="light",
     )
 
+    # The widget root otherwise follows the canvas in normal document flow,
+    # shifting deck.gl's hover coordinate origin down by the map's height.
+    st.markdown(
+        """<style>
+        [data-testid="stDeckGlJsonChart"] .deck-widgets-root {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+        </style>""",
+        unsafe_allow_html=True,
+    )
     st.pydeck_chart(
         deck,
         width="stretch",
@@ -313,8 +343,13 @@ else:
 
 # Results table  ============================
 
+st.download_button(
+    "Download filtered results", filtered_df.to_csv(index=False),
+    file_name="coastal_hurricane_landfalls.csv", mime="text/csv",
+)
+
 st.subheader("Detected Landfall Table Results")
-st.caption("Reconstructed hurricane-strength Florida landfall crossings since 1900")
+st.caption("Reconstructed hurricane-strength coastal landfall crossings since 1900")
 
 show_coordinates = st.checkbox(
     "Show latitude / longitude",
@@ -322,6 +357,7 @@ show_coordinates = st.checkbox(
 )
 
 display_columns = [
+    "state",
     "storm_name",
     "storm_id",
     "landfall_datetime",
@@ -360,6 +396,7 @@ display_df["max_wind_kt"] = (
 
 display_df = display_df.rename(
     columns={
+        "state": "State",
         "storm_name": "Storm Name",
         "storm_id": "Storm ID",
         "landfall_datetime": "Landfall Date / Estimated Time (UTC)",

@@ -1,11 +1,13 @@
 
-# Florida Hurricane Landfalls
+# U.S. Coastal Hurricane Landfalls
 
 An application for analyzing Atlantic HURDAT2 best-track data to identify
-hurricanes that made landfall in Florida from 1900 onward using independent
-geometry-based landfall detection.
+hurricane-strength coastal entries across 18 Atlantic and Gulf coastal states
+from 1900 onward using independent geometry-based detection. Florida remains
+the default dashboard selection.
 
 For each qualifying landfall, the application reports:
+- State
 - Storm name
 - Landfall date and estimated UTC time
 - Estimated maximum sustained wind speed at landfall
@@ -21,7 +23,7 @@ https://fl-landfall-detector.streamlit.app/
 
 The interface provides:
 
-- Year, storm, and minimum-wind filters
+- State, year, storm, and minimum-wind filters
 - Summary metrics
 - Interactive landfall map
 - Filterable landfall results table
@@ -79,7 +81,8 @@ Git; the bundled data is used until the first successful download.
 
 On the next Streamlit rerun (reload the page or change a filter), updated input
 files invalidate the analysis cache and populate the dashboard directly. The
-existing Florida detection rules are unchanged.
+dashboard analyzes all supported coastal states and lets you select one or more.
+Use **Download filtered results** to export the selected events.
 
 For scheduled downloads, run that command with a scheduler **on the same host
 and filesystem as Streamlit**. For example, a weekly cron job (note: replace
@@ -102,6 +105,28 @@ python analyze_landfalls.py
 
 This writes `output/florida_hurricane_landfalls.csv` and
 `output/validation_summary.csv`, using the same analysis as the dashboard.
+
+## Multistate detection
+
+The dashboard supports Alabama, Connecticut, Delaware, Florida, Georgia,
+Louisiana, Maine, Maryland, Massachusetts, Mississippi, New Hampshire,
+New Jersey, New York, North Carolina, Rhode Island, South Carolina, Texas,
+and Virginia. Results include a state field. Each distinct coastal entry is
+retained, including multiple entries by one storm in different states.
+Neighboring U.S. land is excluded even when that state is not selected.
+
+The command-line `analyze_landfalls.py` remains the Florida export and
+validation workflow. Its reference-match statistics below apply only to
+Florida and the bundled dataset, not to all states. Multistate analysis has
+synthetic crossing tests and Florida regression checks; it has not yet been
+validated state by state against historical reference catalogs.
+
+Census U.S. state boundaries do not include Mexican or Canadian land.
+International land-border crossings can therefore be misclassified, and
+entries near those borders require review. The geometric model also treats
+water outside state land polygons as water without distinguishing the ocean
+from bays or inland waterways. Results are reconstructed candidates, with the
+same interpolation and coastline-resolution limitations described below.
 
 ## Input Data
 
