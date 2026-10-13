@@ -1,10 +1,16 @@
 import matplotlib as mpl
 import matplotlib.colors as colors
-import pandas as pd
 import pydeck as pdk
 import streamlit as st
 
-DATA_PATH = "output/florida_hurricane_landfalls.csv"
+from src.analysis import analyze_inputs, landfalls_dataframe
+from src.data_sources import input_paths
+
+
+@st.cache_data(show_spinner="Calculating landfalls…", max_entries=2)
+def load_landfalls(hurdat_path, boundary_path, input_signature):
+    _, _, events = analyze_inputs(hurdat_path, boundary_path)
+    return landfalls_dataframe(events)
 
 def wind_to_color(wind, normalizer, colormap):
     """Map wind speed to an RGBA color for the landfall map"""
@@ -51,10 +57,20 @@ st.info(
 )
 st.divider()
 
-df = pd.read_csv(
-    DATA_PATH,
-    parse_dates=["landfall_datetime"],
-)
+try:
+    hurdat_path, boundary_path = input_paths()
+    source_files = [hurdat_path]
+    source_files.extend(sorted(boundary_path.parent.glob(boundary_path.stem + ".*")))
+    signature = tuple((str(path), path.stat().st_mtime_ns, path.stat().st_size)
+                      for path in source_files)
+    df = load_landfalls(hurdat_path, boundary_path, signature)
+except Exception as exc:
+    st.error(f"Unable to load landfall data: {exc}")
+    st.stop()
+
+if df.empty:
+    st.info("No qualifying hurricane landfalls found in the source data.")
+    st.stop()
 
 # Filters section
 st.sidebar.header("Filters")

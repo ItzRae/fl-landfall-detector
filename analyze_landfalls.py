@@ -1,17 +1,14 @@
 from pathlib import Path
 import csv
 import statistics
-import geopandas as gpd
 
-from src.landfall import detect_hurricane_landfalls
-from src.parser import parse_hurdat
+from src.analysis import analyze_inputs, landfalls_dataframe
+from src.data_sources import ROOT, input_paths
 from src.models import LandfallEvent
 from src.validation import get_florida_hurricane_landfall_records, match_landfall_events
 
-HURDAT_PATH = Path("data/hurdat2-1851-2022-042723.txt")
-BOUNDARY_PATH = Path("data/boundaries/cb_2025_us_state_500k.shp")
-OUTPUT_PATH = Path("output/florida_hurricane_landfalls.csv")
-VALIDATION_OUTPUT_PATH = Path("output/validation_summary.csv")
+OUTPUT_PATH = ROOT / Path("output/florida_hurricane_landfalls.csv")
+VALIDATION_OUTPUT_PATH = ROOT / Path("output/validation_summary.csv")
 
 def write_landfalls_csv(
     events: list[LandfallEvent],
@@ -20,32 +17,11 @@ def write_landfalls_csv(
     """Write computed Florida hurricane landfalls to CSV."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with output_path.open("w", newline="") as file:
-        writer = csv.writer(file)
+    frame = landfalls_dataframe(events)
+    frame["landfall_datetime"] = frame["landfall_datetime"].map(lambda value: value.isoformat())
+    frame.to_csv(output_path, index=False)
+    print(f"Wrote {len(events)} computed landfall candidates to {output_path}")
 
-        writer.writerow([
-            "storm_id",
-            "storm_name",
-            "landfall_datetime",
-            "latitude",
-            "longitude",
-            "max_wind_kt",
-        ])
-
-        for event in events:
-            writer.writerow([
-                event.storm_id,
-                event.storm_name,
-                event.entry.timestamp.isoformat(),
-                event.entry.point.y,
-                event.entry.point.x,
-                event.entry.wind,
-            ])
-
-    print(
-    f"Wrote {len(events)} computed landfall candidates "
-    f"to {OUTPUT_PATH}"
-    )
 
 def write_validation_summary_csv(
     matches,
@@ -106,10 +82,10 @@ def write_validation_summary_csv(
             len(unmatched_reference),
             round(reference_coverage, 1),
             round(computed_match_rate, 1),
-            round(statistics.median(time_errors_min), 1),
-            round(statistics.mean(time_errors_min), 1),
-            round(statistics.median(spatial_errors_km), 1),
-            round(statistics.mean(spatial_errors_km), 1),
+            round(statistics.median(time_errors_min), 1) if matches else None,
+            round(statistics.mean(time_errors_min), 1) if matches else None,
+            round(statistics.median(spatial_errors_km), 1) if matches else None,
+            round(statistics.mean(spatial_errors_km), 1) if matches else None,
         ])
 
     print(
@@ -125,46 +101,12 @@ def main():
     landfalls from 1900 onward
     """
 
-    with HURDAT_PATH.open("r") as file:
-        storms = parse_hurdat(file.readlines())
-
-    # Load FL's state boundary and align it with HURDAT lon/lat coordinates.
-    states = gpd.read_file(BOUNDARY_PATH).to_crs("EPSG:4326")
-    florida = states[states["NAME"] == "Florida"]
-    florida_geom = florida.geometry.iloc[0]
-
-    # Consider hurricanes entering from FL's neighbors
-    neighboring_states = states[
-    states["NAME"].isin(["Alabama", "Georgia"])
-]
-    neighbor_land_geom = neighboring_states.geometry.union_all()
-
-    landfall_events: list[LandfallEvent] = []
-
-    for storm in storms:
-        entries = detect_hurricane_landfalls(
-                    storm, 
-                    florida_geom,
-                    neighbor_land_geom,
-                )
-
-        for entry in entries:
-            if entry.timestamp.year >= 1900:
-                landfall_events.append(
-                    LandfallEvent(
-                        storm_id=storm.id,
-                        storm_name=storm.name,
-                        entry=entry,
-                    )
-                )
-
-    # Keep report output deterministic and chronological
-    landfall_events.sort(key=lambda event: event.entry.timestamp)
+    storms, florida_geom, landfall_events = analyze_inputs(*input_paths())
 
     write_landfalls_csv(
         landfall_events,
         OUTPUT_PATH,
-    )   
+    )
 
     # Build HURDAT2 L-based record-identifier events separately for independent validation
     reference_events = []
@@ -197,8 +139,8 @@ def main():
         reference_events,
         landfall_events,
         VALIDATION_OUTPUT_PATH,
-    )   
-   
+    )
+
 
 if __name__ == "__main__":
     main()

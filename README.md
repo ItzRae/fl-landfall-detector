@@ -57,36 +57,60 @@ python -m pytest
 
 #### 4. Run the landfall analysis
 
-From the repository root, first generate the landfall and validation outputs:
-
-```bash
-python analyze_landfalls.py
-```
-
-Running the analysis produces:
-
-- `output/florida_hurricane_landfalls.csv` — independently detected Florida
-  hurricane landfall events
-- `output/validation_summary.csv` — summary metrics from the independent
-HURDAT2 validation comparison
-
-The validation output does not affect which events are detected or included
-in the primary landfall results to inspect how my own system diverges from HURDAT's 
-landfall classification. 
-
-Then launch the Streamlit interface:
+The dashboard calculates landfalls directly from the source files and caches the
+results in memory. No CSV generation or upload is required:
 
 ```bash
 streamlit run app.py
 ```
 
+To download the current Atlantic HURDAT2 file and the pinned 2025 Census state
+boundaries automatically:
+
+```bash
+python download_data.py
+```
+
+The downloader discovers NOAA's Atlantic download link, validates both inputs,
+and activates the new pair only after both succeed. Source URLs and the UTC
+download time are recorded in `data/downloads/current.json`. Failed downloads
+leave the previous inputs active. Snapshots are retained locally and ignored by
+Git; the bundled data is used until the first successful download.
+
+On the next Streamlit rerun (reload the page or change a filter), updated input
+files invalidate the analysis cache and populate the dashboard directly. The
+existing Florida detection rules are unchanged.
+
+For scheduled downloads, run that command with a scheduler **on the same host
+and filesystem as Streamlit**. For example, a weekly cron job (note: replace
+with installation paths):
+
+```cron
+0 8 * * 1 cd /absolute/path/fl-landfall-detector && /absolute/path/.venv/bin/python download_data.py >> /absolute/path/landfall-download.log 2>&1
+```
+
+This schedule uses the scheduler host's timezone. Scheduling is not installed
+by this repository. A download on your laptop or in GitHub Actions does not
+update a separately hosted Streamlit app. An already open, idle dashboard will
+refresh its results on its next rerun, not on a background timer.
+
+CSV output remains optional for exports and independent validation:
+
+```bash
+python analyze_landfalls.py
+```
+
+This writes `output/florida_hurricane_landfalls.csv` and
+`output/validation_summary.csv`, using the same analysis as the dashboard.
+
 ## Input Data
 
 The analysis uses two main input datasets/files:
 
-**Atlantic HURDAT2 Best Track Data (1851–2022)**
+**Atlantic HURDAT2 Best Track Data**
 Provided by NOAA's National Hurricane Center / Hurricane Research Division.
-The repository uses the HURDAT2 Atlantic dataset containing storm-center position, status, maximum sustained wind, and related best-track observations.
+The bundled snapshot covers 1851–2022; the downloader selects NOAA’s current
+Atlantic release. The dataset contains storm-center position, status, maximum sustained wind, and related best-track observations.
 
 **2025 U.S. State Cartographic Boundary — 1:500,000**
 Provided by the U.S. Census Bureau.
@@ -140,8 +164,8 @@ A storm may produce more than one Florida landfall. Each distinct water-to-land 
 **How exactly do we assign hurricane status/wind when the coastline crossing falls between two observations?**
 Because HURDAT2 observations are generally spaced several hours apart, the exact coastline crossing often occurs between observations.
 
-The application estimates the crossing time and maximum sustained wind using linear 
-interpolation along the track segment between the surrounding observations. This assumes 
+The application estimates the crossing time and maximum sustained wind using linear
+interpolation along the track segment between the surrounding observations. This assumes
 approximately linear storm motion and wind change over that interval.
 
 #### Coastline representation and event granularity
@@ -168,9 +192,9 @@ Hurricane-intensity filter (≥ 64 kt)
     ↓
 LandfallEvent
     ↓
-CSV output
-    ↓
-Streamlit UI
+Shared in-memory DataFrame
+    ├── Streamlit UI (cached)
+    └── Optional CSV export
 ```
 
 ### Testing + Validation
@@ -194,8 +218,8 @@ Testing includes:
 The HURDAT2 `L` record identifier is never used by the landfall detection
 algorithm. It is used only afterward as an independent validation reference.
 
-For Florida hurricane-strength landfall records from 1900 onward, the current
-detector matches 85 of 90 HURDAT2 reference events (94.4% reference coverage).
+For the bundled 1851–2022 dataset, considering Florida hurricane-strength
+landfall records from 1900 onward, the detector matches 85 of 90 HURDAT2 reference events (94.4% reference coverage).
 
 Among matched events:
 
