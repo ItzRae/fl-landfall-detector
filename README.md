@@ -19,7 +19,7 @@ For each qualifying landfall, the application reports:
 
 A deployed version of the application is available here:
 
-https://fl-landfall-detector.streamlit.app/
+https://us-landfall-detector.streamlit.app/
 
 The interface provides:
 
