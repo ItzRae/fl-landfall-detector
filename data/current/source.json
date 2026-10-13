@@ -1,0 +1,6 @@
+{
+  "source_url": "https://www.nhc.noaa.gov/data/hurdat/hurdat2-1851-2025-092326.txt",
+  "sha256": "75202780ce56c8458f16fbef5fb8a026b99b00878dbb95c458211b3e6ef125b4",
+  "updated_at": "2026-10-13T20:08:03.473130+00:00",
+  "boundary_file": "data/boundaries/cb_2025_us_state_500k.shp"
+}
