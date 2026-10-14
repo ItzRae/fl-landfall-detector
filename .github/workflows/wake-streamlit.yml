@@ -1,0 +1,38 @@
+name: Wake Streamlit app
+
+on:
+  schedule:
+    # Visit every six hours, independently of weekly data updates.
+    - cron: '41 */6 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/wake-streamlit.yml'
+      - 'scripts/wake_streamlit.py'
+      - 'scripts/requirements-wake.txt'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wake-streamlit
+  cancel-in-progress: false
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: scripts/requirements-wake.txt
+      - name: Install browser automation
+        run: |
+          python -m pip install -r scripts/requirements-wake.txt
+          python -m playwright install --with-deps chromium
+      - name: Visit and wake dashboard
+        run: python scripts/wake_streamlit.py

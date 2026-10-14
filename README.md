@@ -290,3 +290,17 @@ records, since those records are used only as an external validation signal.
 - **Coastline representation:** Detection uses a modern Census Florida boundary - historical HURDAT2 coordinates and modern coastline geometry do not always align exactly especially around the Florida Keys and small offshore islands.
 - **Event granularity:** The detector retains each distinct water-to-Florida-land crossing. Detailed coastline geometry can therefore produce multiple crossings during a broader storm passage, while HURDAT2 `L` records may represent landfall at a coarser “major coastline” level.
 - **Track-start boundary cases:** If a storm’s first recorded observation already lies on or inside Florida, the preceding water-to-land transition cannot be reconstructed from HURDAT2 (this does not affect any qualifying hurricane landfalls in the analyzed dataset).
+
+### Keep the hosted app awake
+
+The separate **Wake Streamlit app** GitHub Action visits the public dashboard
+with Chromium every six hours, at 00:41, 06:41, 12:41, and 18:41 UTC. If the
+Streamlit sleep page appears, it clicks **Yes, get this app back up!** and waits
+up to four minutes for the results table. An application exception or startup
+timeout fails the job instead of reporting a successful wake-up.
+
+The workflow also runs when its files are pushed to `main`, and can be run
+manually from GitHub Actions. It needs no account credentials and cannot reboot
+an app with a code error. Scheduled runs are best effort, not an uptime guarantee;
+GitHub delays or disabled schedules can still let the app sleep. Browser tooling
+is installed only in this workflow, not in the Streamlit app's dependencies.
